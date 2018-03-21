@@ -7,8 +7,10 @@
  * @contact  group@swoft.org
  * @license  https://github.com/swoft-cloud/swoft/blob/master/LICENSE
  */
-return [
-    'autoInitBean' => true,
-    'beanScan'     => [
-    ],
-];
+
+namespace Swoft\Memory\Exception;
+
+class RuntimeException extends \RuntimeException
+{
+
+}

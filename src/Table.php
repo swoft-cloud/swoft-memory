@@ -1,4 +1,12 @@
 <?php
+/**
+ * This file is part of Swoft.
+ *
+ * @link     https://swoft.org
+ * @document https://doc.swoft.org
+ * @contact  group@swoft.org
+ * @license  https://github.com/swoft-cloud/swoft/blob/master/LICENSE
+ */
 
 namespace Swoft\Memory;
 
@@ -6,46 +14,70 @@ use Swoole\Table as SwooleTable;
 use Swoft\Memory\Table\TableInterface;
 
 /**
- * Table operations
+ * Memory Table
+ *
+ * @package Swoft\Memory
  */
 class Table implements TableInterface
 {
     /**
-     * @var SwooleTable $table 内存表实例
+     * Swoole memory table instance
+     *
+     * @var SwooleTable $table
      */
-    private $table = null;
+    private $table;
 
     /**
-     * @var string $name 内存表名
+     * Memory table name
+     *
+     * @var string $name
      */
     private $name = '';
 
     /**
-     * @var int $size table大小
+     * Table size
+     *
+     * @var int $size
      */
     private $size = 0;
 
     /**
-     * @var array $column 列数组
+     * Table columns
+     *
+     * @var array $column
+     * @struct
      * [
-     *  'field' => ['type', length]
+     *     'field' => ['type', 'size']
      * ]
      */
     private $columns = [];
 
+    /**
+     * Is memory table created ?
+     *
+     * @var bool
+     */
+    private $create = false;
+
+    /**
+     * Table constructor.
+     *
+     * @param string $name
+     * @param int    $size
+     * @param array  $columns
+     * @throws Exception\InvalidArgumentException
+     */
     public function __construct(string $name = '', int $size = 0, array $columns = [])
     {
         $this->setName($name);
-        $this->setTable(new SwooleTable($size));
         $this->setSize($size);
         $this->setColumns($columns);
     }
 
     /**
-     * 设置内存表实例
+     * Set memory table instance
      *
-     * @param SwooleTable $table 内存表实例
-     *
+     * @param SwooleTable $table Table instance
      * @return Table
      */
     public function setTable(SwooleTable $table): self
@@ -56,23 +88,26 @@ class Table implements TableInterface
     }
 
     /**
-     * 获取内存表实例
+     * Get the memory table instance
      *
-     * @return \Swoole\Table
+     * @return SwooleTable
+     * @throws Exception\RuntimeException When memory table have not been create
      */
-    public function getTable()
+    public function getTable(): SwooleTable
     {
+        if (! $this->isCreate()) {
+            throw new Exception\RuntimeException('Memory table have not been create');
+        }
         return $this->table;
     }
 
     /**
-     * 设置内存表名
+     * Set memory table name
      *
-     * @param string $name 内存表名
-     *
+     * @param string $name Memory table name
      * @return Table
      */
-    public function setName(string $name): Table
+    public function setName(string $name): self
     {
         $this->name = $name;
 
@@ -80,23 +115,22 @@ class Table implements TableInterface
     }
 
     /**
-     * 返回内存表名
+     * Get memory table name
      *
      * @return string
      */
-    public function getName()
+    public function getName(): string
     {
         return $this->name;
     }
 
     /**
-     * 设置内存表大小
+     * Set memory table size
      *
-     * @param int $size 内存表大小
-     *
+     * @param int $size
      * @return Table
      */
-    public function setSize(int $size): Table
+    public function setSize(int $size): self
     {
         $this->size = $size;
 
@@ -104,7 +138,7 @@ class Table implements TableInterface
     }
 
     /**
-     * 获取内存表大小
+     * Get memory table size that have been set
      *
      * @return mixed
      */
@@ -114,21 +148,24 @@ class Table implements TableInterface
     }
 
     /**
-     * 设置内存表字段结构
+     * Set memory table columns struct
      *
-     * @param array $columns 字段数组
-     *
+     * @param array $columns
      * @return Table;
+     * @throws Exception\InvalidArgumentException
      */
-    public function setColumns(array $columns): Table
+    public function setColumns(array $columns): self
     {
+        foreach ($columns as $column => list($type, $size)) {
+            list($type, $size) = $this->validateColumn($type, $size);
+            $columns[$column] = [$type, $size];
+        }
         $this->columns = $columns;
-
         return $this;
     }
 
     /**
-     * 返回列字段数组
+     * Get memory table columns struct
      *
      * @return mixed
      */
@@ -138,153 +175,238 @@ class Table implements TableInterface
     }
 
     /**
-     * 内存表增加一列
+     * Add a column
      *
-     * @param string $name 列名
-     * @param int $type 类型
-     * @param int $size 最大长度，单位为字节
+     * @param string $name Column name
+     * @param int    $type Column type
+     * @param int    $size Max length of column (in bits)
+     * @return bool
+     * @throws Exception\InvalidArgumentException
      */
-    public function column(string $name, int $type, int $size = 0)
+    public function column(string $name, int $type, int $size = 0): bool
+    {
+        list($type, $size) = $this->validateColumn($type, $size);
+        $this->columns[] = [$name, [$type, $size]];
+        return true;
+    }
+
+    /**
+     * Create table by columes
+     *
+     * @return bool
+     * @throws Exception\RuntimeException When memory table have been created
+     * @throws Exception\InvalidArgumentException
+     */
+    public function create(): bool
+    {
+        if ($this->isCreate()) {
+            throw new Exception\RuntimeException('Memory table have been created, cannot recreated');
+        }
+
+        // Init memory table instace
+        $table = new SwooleTable($this->getSize());
+        $this->setTable($table);
+
+        // Set columns
+        foreach ($this->columns as $field => $fieldValue) {
+            $args = array_merge([$field], $fieldValue);
+            $this->table->column(...$args);
+        }
+
+        // Create memory table
+        $result = $table->create();
+
+        // Change memory table create status
+        $this->setCreate(true);
+        return $result;
+    }
+
+    /**
+     * Set data
+     *
+     * @param string $key  Index key
+     * @param array  $data Index data
+     * @return bool
+     * @throws Exception\RuntimeException When memory table have not been create
+     */
+    public function set(string $key, array $data): bool
+    {
+        if (! $this->isCreate()) {
+            throw new Exception\RuntimeException('Memory table have not been create');
+        }
+        return $this->getTable()->set($key, $data);
+    }
+
+    /**
+     * Get data by key and field
+     *
+     * @param string $key   Index key
+     * @param string $field Filed name of Index
+     * @return array|false Will return an array when success, return false when failure
+     * @throws Exception\RuntimeException When memory table have not been create
+     */
+    public function get(string $key, $field = null)
+    {
+        return null !== $field ? $this->getTable()->get($key, $field) : $this->getTable()->get($key);
+    }
+
+    /**
+     * Determine if column exist
+     *
+     * @param string $key Index key
+     * @return bool
+     * @throws Exception\RuntimeException When memory table have not been create
+     */
+    public function exist(string $key): bool
+    {
+        return $this->getTable()->exist($key);
+    }
+
+    /**
+     * Delete data by index key
+     *
+     * @param string $key Index key
+     * @return bool
+     * @throws Exception\RuntimeException When memory table have not been create
+     */
+    public function del(string $key): bool
+    {
+        return $this->getTable()->del($key);
+    }
+
+    /**
+     * Increase
+     *
+     * @param string    $key    Index key
+     * @param string    $field  Field of Index
+     * @param int|float $incrby Increase value, the value type should follow the original type of column
+     * @return bool|int|float Will return false when failure, return the value after increased when success
+     * @throws Exception\RuntimeException When memory table have not been create
+     */
+    public function incr(string $key, string $field, $incrby = 1)
+    {
+        return $this->getTable()->incr($key, $field, $incrby);
+    }
+
+    /**
+     * Decrease
+     *
+     * @param string    $key    Index key
+     * @param string    $field  Field of Index
+     * @param int|float $decrby Decrease value, the value type should follow the original type of column
+     * @return bool|int|float Will return false when failure, return the value after decreased when success
+     * @throws Exception\RuntimeException When memory table have not been create
+     */
+    public function decr(string $key, string $field, $decrby = 1)
+    {
+        return $this->getTable()->decr($key, $field, $decrby);
+    }
+
+    /**
+     * @return bool
+     */
+    public function isCreate(): bool
+    {
+        return $this->create;
+    }
+
+    /**
+     * @param bool $create
+     * @return Table
+     */
+    public function setCreate($create): self
+    {
+        $this->create = $create;
+        return $this;
+    }
+
+    /**
+     * @param int $type
+     * @param int $size
+     * @return array
+     * @throws Exception\InvalidArgumentException When size is unavailable
+     */
+    protected function validateColumn(int $type, int $size): array
     {
         switch ($type) {
             case self::TYPE_INT:
-                if (!in_array($size,
-                    [self::ONE_INT_LENGTH, self::TWO_INT_LENGTH, self::FOUR_INT_LENGTH, self::EIGHT_INT_LENGTH])) {
+                if (! \in_array($size, [
+                    self::ONE_INT_LENGTH,
+                    self::TWO_INT_LENGTH,
+                    self::FOUR_INT_LENGTH,
+                    self::EIGHT_INT_LENGTH
+                ], true)) {
                     $size = 4;
                 }
                 break;
             case self::TYPE_STRING:
                 if ($size < 0) {
-                    throw new \RuntimeException('Size not be allow::' . $size);
+                    throw new Exception\InvalidArgumentException('Size unavailable, should greater than 0');
                 }
                 break;
             case self::TYPE_FLOAT:
                 $size = 8;
                 break;
             default:
-                throw new \RuntimeException('Undefind Column-Type::' . $type);
+                throw new Exception\InvalidArgumentException(sprintf('Undefined Column Type %s', $type));
         }
-
-        $this->table->column($name, $type, $size);
+        return [$type, $size];
     }
 
     /**
-     * 创建内存表
-     */
-    public function create()
-    {
-        foreach ($this->columns as $field => $fieldValue) {
-            $args = array_merge([$field], $fieldValue);
-            $this->column(...$args);
-        }
-
-        return $this->table->create();
-    }
-
-    /**
-     * 设置行数据
+     * Invoke
      *
-     * @param string $key 索引键
-     * @param array $array 数据
-     *
-     * @return bool
-     */
-    public function set(string $key, array $array)
-    {
-        return $this->table->set($key, $array);
-    }
-
-    /**
-     * 原子自增操作
-     *
-     * @param string $key 索引键
-     * @param string $column 列名
-     * @param int|float $incrby 增量。如果列为整形，$incrby必须为int型，如果列为浮点型，$incrby必须为float类型
-     *
-     * @return bool
-     */
-    public function incr(string $key, string $column, $incrby = 1)
-    {
-        return $this->table->incr($key, $column, $incrby);
-    }
-
-    /**
-     * 原子自减操作
-     *
-     * @param string $key 索引键
-     * @param string $column 列名
-     * @param int|float $incrby 增量。如果列为整形，$incrby必须为int型，如果列为浮点型，$incrby必须为float类型
-     *
-     * @return bool|int 返回false执行失败，成功返回整数结果值
-     */
-    public function decr(string $key, string $column, $incrby = 1)
-    {
-        return $this->table->decr($key, $column, $incrby);
-    }
-
-    /**
-     * 获取一行数据
-     *
-     * @param string $key 索引键
-     * @param string $field 列名
-     *
-     * @return array
-     */
-    public function get(string $key, $field = null)
-    {
-        return $field ? $this->table->get($key, $field) : $this->table->get($key);
-    }
-
-    /**
-     * 检查table中是否存在某一个key
-     *
-     * @param string $key 索引键
-     */
-    public function exist(string $key)
-    {
-        return $this->table->exist($key);
-    }
-
-    /**
-     * 删除数据
-     *
-     * @param string $key 索引键
-     *
-     * @return bool
-     */
-    public function del(string $key)
-    {
-        return $this->table->del($key);
-    }
-
-    /**
-     * invoke
-     *
-     * @param string $method 方法名字
-     * @param        array   参数
-     *
+     * @param string $method
+     * @param array  $args
      * @return mixed
+     * @throws Exception\RuntimeException
      */
     public function __call(string $method, array $args = [])
     {
         if (method_exists($this, $method)) {
             return $this->$method(...$args);
         }
-        throw new \RuntimeException('Call a not exists method.');
+        throw new Exception\RuntimeException(printf('Call to undefined method %s', $method));
     }
 
     /**
      * __get
      *
-     * @param string $name 属性名
+     * @param string $name
+     * @throws Exception\RuntimeException
      */
     public function __get(string $name)
     {
         $method = 'get' . ucfirst($name);
-        if (!method_exists($this, $method)) {
-            throw new \RuntimeException('Call undefind property::' . $name);
+        if (! method_exists($this, $method)) {
+            throw new Exception\RuntimeException(sprintf('Call to undefined property %s', $name));
         }
 
         return $this->$method();
+    }
+
+    /**
+     * @param string $name
+     * @param mixed  $value
+     * @return mixed
+     * @throws Exception\RuntimeException
+     */
+    public function __set($name, $value)
+    {
+        $method = 'set' . ucfirst($name);
+        if (! method_exists($this, $method)) {
+            throw new Exception\RuntimeException(sprintf('Call to undefined property %s', $name));
+        }
+
+        return $this->$method();
+    }
+
+    /**
+     * @param $name
+     * @return bool
+     */
+    public function __isset($name): bool
+    {
+        return isset($this->$name);
     }
 }
