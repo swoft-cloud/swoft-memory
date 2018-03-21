@@ -232,7 +232,7 @@ class Table implements TableInterface
      */
     public function get(string $key, $field = null)
     {
-        return $this->table->get($key, $field);
+        return $field ? $this->table->get($key, $field) : $this->table->get($key);
     }
 
     /**
