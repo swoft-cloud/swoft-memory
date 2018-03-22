@@ -1,4 +1,12 @@
 <?php
+/**
+ * This file is part of Swoft.
+ *
+ * @link     https://swoft.org
+ * @document https://doc.swoft.org
+ * @contact  group@swoft.org
+ * @license  https://github.com/swoft-cloud/swoft/blob/master/LICENSE
+ */
 
 namespace Swoft\Memory\Table;
 
@@ -10,99 +18,108 @@ use Swoole\Table;
 interface TableInterface
 {
     /**
-     * 一个单位长度的int类型
+     * An int type of unit length
      */
     const ONE_INT_LENGTH = 1;
 
     /**
-     * 两个单位长度的int类型
+     * An int of two units of length
      */
     const TWO_INT_LENGTH = 2;
 
     /**
-     * 四个单位长度的int类型
+     * An int of four units of length
      */
     const FOUR_INT_LENGTH = 4;
 
     /**
-     * 八个单位长度的int类型
+     * An int of eight units of length
      */
     const EIGHT_INT_LENGTH = 8;
 
     /**
-     * int类型
+     * Int type
      */
     const TYPE_INT = Table::TYPE_INT;
 
     /**
-     * string类型
+     * String type
      */
     const TYPE_STRING = Table::TYPE_STRING;
 
     /**
-     * float类型
+     * Float type
      */
     const TYPE_FLOAT = Table::TYPE_FLOAT;
 
     /**
-     * 内存表增加一列
+     * Add a column
      *
-     * @param string $name 列名
-     * @param int $type 类型
-     * @param int $size 最大长度，单位为字节
+     * @param string $name Column name
+     * @param int    $type Column type
+     * @param int    $size Max length of column (in bits)
+     * @return bool
      */
-    public function column(string $name, int $type, int $size = 0);
+    public function column(string $name, int $type, int $size = 0): bool;
 
     /**
-     * 创建内存表
+     * Create table by columes
+     *
+     * @return bool
      */
-    public function create();
+    public function create(): bool;
 
     /**
-     * 设置行数据
+     * Set data
      *
-     * @param string $key   索引键
-     * @param array  $array 数据
+     * @param string $key  Index key
+     * @param array  $data Index data
+     * @return bool
      */
-    public function set(string $key, array $array);
+    public function set(string $key, array $data): bool;
 
     /**
-     * 原子自增操作
+     * Get data by key and field
      *
-     * @param string    $key    索引键
-     * @param string    $column 列名
-     * @param int|float $incrby 增量。如果列为整形，$incrby必须为int型，如果列为浮点型，$incrby必须为float类型
-     */
-    public function incr(string $key, string $column, $incrby = 1);
-
-    /**
-     * 原子自减操作
-     *
-     * @param string    $key    索引键
-     * @param string    $column 列名
-     * @param int|float $incrby 增量。如果列为整形，$incrby必须为int型，如果列为浮点型，$incrby必须为float类型
-     */
-    public function decr(string $key, string $column, $incrby = 1);
-
-    /**
-     * 获取一行数据
-     *
-     * @param string $key   索引键
-     * @param string $field 列名
+     * @param string $key   Index key
+     * @param string $field Filed name of Index
+     * @return array|false Will return an array when success, return false when failure
      */
     public function get(string $key, $field = null);
 
     /**
-     * 检查table中是否存在某一个key
+     * Determine if column exist
      *
-     * @param string $key 索引键
+     * @param string $key Index key
+     * @return bool
      */
-    public function exist(string $key);
+    public function exist(string $key): bool;
 
     /**
-     * 删除数据
+     * Delete data by index key
      *
-     * @param string $key 索引键
+     * @param string $key Index key
+     * @return bool
      */
-    public function del(string $key);
+    public function del(string $key): bool;
+
+    /**
+     * Increase
+     *
+     * @param string    $key    Index key
+     * @param string    $field  Field of Index
+     * @param int|float $incrby Increase value, the value type should follow the original type of column
+     * @return bool|int|float Will return false when failure, return the value after increased when success
+     */
+    public function incr(string $key, string $field, $incrby = 1);
+
+    /**
+     * Decrease
+     *
+     * @param string    $key    Index key
+     * @param string    $field  Field of Index
+     * @param int|float $decrby Decrease value, the value type should follow the original type of column
+     * @return bool|int|float Will return false when failure, return the value after decreased when success
+     */
+    public function decr(string $key, string $field, $decrby = 1);
 }
