@@ -363,8 +363,8 @@ class Table implements TableInterface
      */
     public function __call(string $method, array $args = [])
     {
-        if (method_exists($this, $method)) {
-            return $this->$method(...$args);
+        if (method_exists($this->table, $method)) {
+            return $this->table->$method(...$args);
         }
         throw new Exception\RuntimeException(printf('Call to undefined method %s', $method));
     }
